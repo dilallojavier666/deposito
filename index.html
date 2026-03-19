@@ -31,6 +31,7 @@ header{background:var(--surface);border-bottom:2px solid var(--accent);padding:9
 .save-xlsx-btn:hover{background:rgba(245,166,35,.25);box-shadow:0 0 10px rgba(245,166,35,.3);}
 .save-xlsx-btn.pulse{animation:savePulse 1s ease;}
 @keyframes savePulse{0%{box-shadow:0 0 0 0 rgba(245,166,35,.6);}70%{box-shadow:0 0 0 8px rgba(245,166,35,0);}100%{box-shadow:0 0 0 0 rgba(245,166,35,0);}}
+@keyframes dotPulse{0%,100%{opacity:1;}50%{opacity:.3;}}
 .new-mov-btn:hover{background:rgba(45,204,122,.22);}
 
 /* PAGES */
@@ -282,37 +283,6 @@ header{background:var(--surface);border-bottom:2px solid var(--accent);padding:9
 .toast.s{border-color:var(--green);color:var(--green);}
 .toast.e{border-color:var(--red);color:var(--red);}
 .toast.i{border-color:var(--blue);color:var(--blue);}
-
-/* AUTOSAVE STATUS */
-#autoSaveStatus{display:flex;align-items:center;gap:5px;font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.3px;transition:all .3s;}
-#autoSaveStatus.saved{color:var(--green);}
-#autoSaveStatus.saving{color:var(--accent);}
-#autoSaveStatus.idle{color:var(--muted);}
-.save-dot{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block;}
-.save-dot.pulse{animation:dotPulse 1s ease infinite;}
-@keyframes dotPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.7);}}
-
-/* AI SUGGESTION BOX */
-.ai-suggest-box{background:linear-gradient(135deg,rgba(139,92,246,.12),rgba(61,142,248,.08));border:1px solid rgba(139,92,246,.35);border-radius:8px;padding:10px 13px;margin-bottom:12px;display:none;position:relative;}
-.ai-suggest-box.on{display:block;animation:aiSlide .25s ease;}
-@keyframes aiSlide{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}
-.ai-suggest-hdr{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
-.ai-suggest-hdr span{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--purple);}
-.ai-suggest-hdr .ai-icon{font-size:13px;}
-.ai-suggest-text{font-size:12px;color:var(--text);line-height:1.5;}
-.ai-suggest-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;}
-.ai-chip{background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);border-radius:5px;padding:3px 10px;font-size:11px;font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--purple);cursor:pointer;transition:all .15s;}
-.ai-chip:hover{background:rgba(139,92,246,.3);border-color:var(--purple);}
-.ai-thinking{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);}
-.ai-thinking-dots span{animation:blink 1.2s ease infinite;}
-.ai-thinking-dots span:nth-child(2){animation-delay:.2s;}
-.ai-thinking-dots span:nth-child(3){animation-delay:.4s;}
-@keyframes blink{0%,100%{opacity:.2;}50%{opacity:1;}}
-.ai-close-btn{position:absolute;top:7px;right:8px;background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:0;line-height:1;}
-.ai-close-btn:hover{color:var(--text);}
-
-/* PULSE ANIMATION FOR SAVE BUTTON */
-@keyframes saveBtnPulse{0%{box-shadow:0 0 0 0 rgba(45,204,122,.5);}70%{box-shadow:0 0 0 10px rgba(45,204,122,0);}100%{box-shadow:0 0 0 0 rgba(45,204,122,0);}}
 </style>
 </head>
 <body>
@@ -326,10 +296,10 @@ header{background:var(--surface);border-bottom:2px solid var(--accent);padding:9
   </nav>
   <div class="hdr-right">
     <span class="live-clock" id="clock"></span>
-    <div id="autoSaveStatus" class="idle">
-      <span class="save-dot"></span>
-      <span id="autoSaveLabel">Sin cambios</span>
-    </div>
+    <span id="autoSaveStatus" style="font-size:11px;font-family:'Barlow Condensed',sans-serif;display:flex;align-items:center;gap:5px;color:var(--muted)" id="autoSaveStatus">
+      <span id="autoSaveDot" style="width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block"></span>
+      <span id="autoSaveLabel">Sincronizado ☁️</span>
+    </span>
     <button class="save-xlsx-btn" id="saveXlsxBtn" onclick="exportXLSX()" title="Guardar todos los movimientos como Excel">
       💾 Guardar Excel
     </button>
@@ -435,12 +405,6 @@ header{background:var(--surface);border-bottom:2px solid var(--accent);padding:9
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
     <div class="modal-body">
-      <!-- AI Suggestion Box -->
-      <div class="ai-suggest-box" id="aiSuggestBox">
-        <button class="ai-close-btn" onclick="document.getElementById('aiSuggestBox').classList.remove('on')">✕</button>
-        <div class="ai-suggest-hdr"><span class="ai-icon">🤖</span><span>Sugerencia IA</span></div>
-        <div id="aiSuggestContent"></div>
-      </div>
       <div class="prof-info" id="mProfInfo"></div>
       <div class="fr" id="mPerfilRow" style="position:relative">
         <label>Perfil</label>
@@ -515,113 +479,72 @@ const DATA = [{"linea":"HERRERO","perfil":"A00001","desc":"MCO VEN/PTA M0667  73
 ;
 
 // =========================================================
-//  STORAGE — Google Sheets + localStorage como caché local
+//  STORAGE — JSONBin.io
 // =========================================================
 const LS = 'dep_movs_v2';
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwiyKZn4YqPrypXq5R9kixJ93UNkLfL96MwvgfRy9FsGslh5uWf9AL78CQzcxiF-laXTQ/exec';
+const BIN_ID = '69bc0baec3097a1dd53d31d3';
+const BIN_KEY = '$2a$10$mC5Mpo05ID666N6a6/iYpuBKYPVJ/uL3Jl.HH5I0dOLxcsu/TKDGC';
+const BIN_URL = 'https://api.jsonbin.io/v3/b/' + BIN_ID;
 
 function loadMovs(){ try{ return JSON.parse(localStorage.getItem(LS)||'[]'); }catch{ return []; } }
 
 function saveMovs(m){
   localStorage.setItem(LS, JSON.stringify(m));
-  triggerAutoSaveUI('saving');
-  syncToSheets(m);
+  syncToBin(m);
 }
 
-// Sync movimientos a Google Sheets
-// Guardar movimientos a Google Sheets (no-cors — el save no necesita respuesta)
-function syncToSheets(movs){
+function setStatus(color, label, pulse){
+  const dot = document.getElementById('autoSaveDot');
+  const lbl = document.getElementById('autoSaveLabel');
+  const wrap = document.getElementById('autoSaveStatus');
+  if(wrap) wrap.style.color = color;
+  if(lbl) lbl.textContent = label;
+  if(dot) dot.style.animation = pulse ? 'dotPulse 1s ease infinite' : 'none';
+}
+
+async function syncToBin(movs){
+  setStatus('var(--accent)', 'Guardando...', true);
   try {
-    const DATA_MAP = {};
-    DATA.forEach(p => DATA_MAP[p.perfil] = p);
-    const payload = {
-      action: 'save',
-      movs: movs.map(m => ({...m, desc: DATA_MAP[m.perfil]?.desc || ''}))
-    };
-    fetch(SHEETS_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
+    const DM = {}; DATA.forEach(p => DM[p.perfil] = p);
+    const payload = { movs: movs.map(m => ({...m, desc: DM[m.perfil]?.desc||''})) };
+    const res = await fetch(BIN_URL, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': BIN_KEY
+      },
       body: JSON.stringify(payload)
-    }).then(()=>{
-      triggerAutoSaveUI('saved');
-    }).catch(()=>{
-      triggerAutoSaveUI('error');
     });
-  } catch(err) {
-    triggerAutoSaveUI('error');
+    if(res.ok){
+      setStatus('var(--green)', '✓ Guardado ☁️', false);
+      setTimeout(()=> setStatus('var(--muted)', 'Sincronizado ☁️', false), 3000);
+    } else {
+      setStatus('var(--red)', '⚠️ Error al guardar', false);
+    }
+  } catch(err){
+    setStatus('var(--red)', '⚠️ Sin conexión', false);
   }
 }
 
-// Cargar movimientos desde Google Sheets usando JSONP (evita CORS desde archivo local)
-function loadFromSheets(){
-  triggerAutoSaveUI('loading');
-  const cbName = 'gsCb_' + Date.now();
-  const tag = document.createElement('script');
-
-  window[cbName] = function(json){
-    delete window[cbName];
-    try { document.head.removeChild(tag); } catch(e){}
-    try {
-      if(json.ok && json.movs && json.movs.length > 0){
-        localStorage.setItem(LS, JSON.stringify(json.movs));
-        triggerAutoSaveUI('synced', json.movs.length);
-        buildGrids(); updateFloorCounts(); renderList(); renderMovs(); renderRep();
-      } else {
-        triggerAutoSaveUI('idle');
-      }
-    } catch(e){ triggerAutoSaveUI('offline'); }
-  };
-
-  tag.onerror = function(){
-    delete window[cbName];
-    try { document.head.removeChild(tag); } catch(e){}
-    triggerAutoSaveUI('offline');
-  };
-
-  tag.src = SHEETS_URL + '?callback=' + cbName + '&t=' + Date.now();
-  document.head.appendChild(tag);
-}
-
-// Auto-save UI feedback
-let _saveTimer = null;
-function triggerAutoSaveUI(state, count){
-  const el = document.getElementById('autoSaveStatus');
-  const lbl = document.getElementById('autoSaveLabel');
-  const dot = el.querySelector('.save-dot');
-  clearTimeout(_saveTimer);
-
-  if(state === 'saving'){
-    el.className = 'saving';
-    lbl.textContent = 'Guardando en Sheets...';
-    dot.classList.add('pulse');
-  } else if(state === 'saved'){
-    el.className = 'saved';
-    lbl.textContent = '✓ Guardado en Google Sheets';
-    dot.classList.remove('pulse');
-    _saveTimer = setTimeout(()=>{ el.className='idle'; lbl.textContent='Sincronizado ☁️'; }, 3500);
-  } else if(state === 'loading'){
-    el.className = 'saving';
-    lbl.textContent = 'Cargando desde Sheets...';
-    dot.classList.add('pulse');
-  } else if(state === 'synced'){
-    el.className = 'saved';
-    lbl.textContent = `☁️ ${count} movimientos sincronizados`;
-    dot.classList.remove('pulse');
-    _saveTimer = setTimeout(()=>{ el.className='idle'; lbl.textContent='Sincronizado ☁️'; }, 4000);
-  } else if(state === 'error'){
-    el.className = 'saving';
-    lbl.textContent = '⚠️ Error al guardar en Sheets';
-    dot.classList.remove('pulse');
-    _saveTimer = setTimeout(()=>{ el.className='idle'; lbl.textContent='Sin conexión ☁️'; }, 4000);
-  } else if(state === 'offline'){
-    el.className = 'idle';
-    lbl.textContent = '📴 Modo sin conexión';
-    dot.classList.remove('pulse');
-  } else {
-    el.className = 'idle';
-    lbl.textContent = 'Sincronizado ☁️';
-    dot.classList.remove('pulse');
+async function loadFromSheets(){
+  setStatus('var(--accent)', 'Cargando...', true);
+  try {
+    const res = await fetch(BIN_URL + '/latest', {
+      headers: { 'X-Master-Key': BIN_KEY }
+    });
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const movs = data?.record?.movs || [];
+    if(movs.length > 0){
+      localStorage.setItem(LS, JSON.stringify(movs));
+      setStatus('var(--green)', '☁️ ' + movs.length + ' movimientos sincronizados', false);
+      setTimeout(()=> setStatus('var(--muted)', 'Sincronizado ☁️', false), 4000);
+      buildGrids(); updateFloorCounts(); renderList(); renderMovs(); renderRep();
+    } else {
+      setStatus('var(--muted)', 'Sincronizado ☁️', false);
+    }
+  } catch(err){
+    setStatus('var(--muted)', '📴 Sin conexión', false);
   }
 }
 
@@ -1085,10 +1008,6 @@ function openModal(tipo, profCode, shelfHint){
   document.getElementById('plocBody').innerHTML='';
 
   document.getElementById('overlay').classList.add('on');
-  // Hook AI suggestions to perfil input (NEW modal)
-  if(isNew) setTimeout(hookAIToPerfilInput, 50);
-  // Reset AI box on modal open
-  hideAISuggest();
 }
 
 
@@ -1245,7 +1164,7 @@ function onPerfilInput(val){
   });
 }
 
-function closeModal(){ document.getElementById('overlay').classList.remove('on'); hideAISuggest(); _aiInputHooked = false; }
+function closeModal(){ document.getElementById('overlay').classList.remove('on'); }
 
 function confirmMov(){
   const isNew=mState.tipo==='NEW';
@@ -1279,7 +1198,7 @@ function confirmMov(){
   renderList();
   if(selProfile) selectProfile(selProfile);
   if(document.getElementById('page-movements').classList.contains('active')) renderMovs();
-  // Excel se descarga solo si el usuario hace clic en "Guardar Excel"
+  // Excel solo se descarga si el usuario hace clic en "Guardar Excel"
 }
 
 // =========================================================
@@ -1759,91 +1678,6 @@ function updateClock(){ const n=new Date(); document.getElementById('clock').tex
 setInterval(updateClock,1000); updateClock();
 
 // =========================================================
-//  AI SUGGESTIONS — Autocompletado inteligente con Claude
-// =========================================================
-let _aiDebounce = null;
-let _aiLastQuery = '';
-
-async function triggerAISuggestion(query){
-  if(!query || query.length < 3) { hideAISuggest(); return; }
-  if(query === _aiLastQuery) return;
-  _aiLastQuery = query;
-
-  const box = document.getElementById('aiSuggestBox');
-  const content = document.getElementById('aiSuggestContent');
-  box.classList.add('on');
-  content.innerHTML = `<div class="ai-thinking">Analizando... <span class="ai-thinking-dots"><span>●</span><span>●</span><span>●</span></span></div>`;
-
-  // Prepare context: top matches and stock info
-  const term = query.toLowerCase();
-  const stock = getStock();
-  const matches = DATA.filter(p =>
-    p.perfil.toLowerCase().includes(term) ||
-    (p.desc||'').toLowerCase().includes(term)
-  ).slice(0, 12).map(p => {
-    const shelves = getProfileShelves(p.perfil);
-    const totalStock = shelves.reduce((s, sh) => s + (stock[p.perfil+'|'+sh]||0), 0);
-    return `${p.perfil} — ${p.desc||'sin desc'} — Stock: ${totalStock}u en [${shelves.slice(0,3).join(',')}]`;
-  }).join('\n');
-
-  if(!matches){ content.innerHTML = '<div style="font-size:12px;color:var(--muted)">Sin perfiles que coincidan.</div>'; return; }
-
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 300,
-        system: `Sos un asistente de gestión de depósito de perfiles de aluminio. El usuario busca perfiles. Respondé con una sugerencia MUY breve (máximo 2 oraciones) y 2-4 chips de perfiles recomendados. Formato de respuesta SOLO JSON: {"tip":"texto sugerencia breve","chips":["COD1","COD2","COD3"]}. Sin markdown, sin explicaciones extra.`,
-        messages: [{
-          role: "user",
-          content: `El operador buscó: "${query}"\nPerfiles encontrados en sistema:\n${matches}\n\nDa una sugerencia útil y los mejores perfiles a elegir.`
-        }]
-      })
-    });
-    const data = await response.json();
-    const text = data.content?.[0]?.text || '';
-    try {
-      const clean = text.replace(/```json|```/g,'').trim();
-      const parsed = JSON.parse(clean);
-      const chipHTML = (parsed.chips||[]).map(c => {
-        const p = DATA.find(x=>x.perfil===c);
-        return p ? `<span class="ai-chip" onclick="selectPerfilFromDropdown('${c}')" title="${p.desc||''}">${c}</span>` : '';
-      }).filter(Boolean).join('');
-      content.innerHTML = `<div class="ai-suggest-text">${parsed.tip||''}</div>${chipHTML?`<div class="ai-suggest-chips">${chipHTML}</div>`:''}`;
-    } catch(e) {
-      content.innerHTML = `<div class="ai-suggest-text">${text.slice(0,120)}</div>`;
-    }
-  } catch(err) {
-    hideAISuggest();
-  }
-}
-
-function hideAISuggest(){
-  document.getElementById('aiSuggestBox').classList.remove('on');
-  _aiLastQuery = '';
-}
-
-// Hook into the perfil input with debounce for AI
-let _aiInputHooked = false;
-function hookAIToPerfilInput(){
-  if(_aiInputHooked) return;
-  const input = document.getElementById('mPerfilInput');
-  if(!input) return;
-  _aiInputHooked = true;
-  input.addEventListener('input', function(e){
-    const val = e.target.value.trim();
-    clearTimeout(_aiDebounce);
-    if(val.length >= 3){
-      _aiDebounce = setTimeout(()=>triggerAISuggestion(val), 950);
-    } else {
-      hideAISuggest();
-    }
-  });
-}
-
-// =========================================================
 //  INIT
 // =========================================================
 renderList();
@@ -1851,7 +1685,7 @@ renderMovs();
 renderRep();
 document.getElementById('mDateF').value=new Date().toISOString().slice(0,10);
 
-// Cargar datos desde Google Sheets al iniciar
+// Cargar desde Google Sheets al iniciar
 loadFromSheets();
 
 // Warn before closing if there are unsaved movements
